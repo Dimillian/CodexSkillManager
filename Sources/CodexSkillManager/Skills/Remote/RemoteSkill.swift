@@ -5,5 +5,6 @@ struct RemoteSkill: Identifiable, Hashable {
     let slug: String
     let displayName: String
     let summary: String?
-    let version: String?
+    let latestVersion: String?
+    let updatedAt: Date?
 }

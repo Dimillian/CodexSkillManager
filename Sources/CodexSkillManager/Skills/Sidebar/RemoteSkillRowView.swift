@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RemoteSkillRowView: View {
     let skill: RemoteSkill
+    let isInstalled: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -16,10 +17,14 @@ struct RemoteSkillRowView: View {
                     .lineLimit(2)
             }
 
-            if let version = skill.version {
-                Text("Version \(version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                if let version = skill.latestVersion {
+                    TagView(text: "v\(version)")
+                }
+
+                if isInstalled {
+                    TagView(text: "Installed", tint: .green)
+                }
             }
         }
         .padding(.vertical, 6)
