@@ -1,31 +1,49 @@
 import SwiftUI
 
 struct SkillListView: View {
-    let skills: [Skill]
-    @Binding var selection: Skill.ID?
+    @Binding var source: SkillSource
+    let localSkills: [Skill]
+    @Binding var localSelection: Skill.ID?
+    let remoteSkills: [RemoteSkill]
+    @Binding var remoteSelection: RemoteSkill.ID?
     @Environment(SkillStore.self) private var store
 
     var body: some View {
-        List(selection: $selection) {
+        List(selection: source == .local ? $localSelection : $remoteSelection) {
             Section {
-                ForEach(skills) { skill in
-                    SkillRowView(skill: skill)
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                Task { await store.deleteSkills(ids: [skill.id]) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                if source == .local {
+                    ForEach(localSkills) { skill in
+                        SkillRowView(skill: skill)
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    Task { await store.deleteSkills(ids: [skill.id]) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
+                    }
+                    .onDelete { offsets in
+                        let ids = offsets
+                            .filter { localSkills.indices.contains($0) }
+                            .map { localSkills[$0].id }
+                        Task { await store.deleteSkills(ids: ids) }
+                    }
+                } else {
+                    if remoteSkills.isEmpty {
+                        Text("Search Clawdhub to see skills.")
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(remoteSkills) { skill in
+                            RemoteSkillRowView(skill: skill)
                         }
-                }
-                .onDelete { offsets in
-                    let ids = offsets
-                        .filter { skills.indices.contains($0) }
-                        .map { skills[$0].id }
-                    Task { await store.deleteSkills(ids: ids) }
+                    }
                 }
             } header: {
-                SidebarHeaderView(skillCount: skills.count)
+                SidebarHeaderView(
+                    source: $source,
+                    skillCount: source == .local ? localSkills.count : remoteSkills.count
+                )
             }
         }
         .listStyle(.sidebar)
@@ -37,28 +55,65 @@ struct SkillListView: View {
                     Label("Reload", systemImage: "arrow.clockwise")
                 }
                 .labelStyle(.iconOnly)
+                .disabled(source != .local)
             }
         }
     }
 }
 
 private struct SidebarHeaderView: View {
+    @Binding var source: SkillSource
     let skillCount: Int
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Picker("Source", selection: $source) {
+                    ForEach(SkillSource.allCases) { source in
+                        Text(source.rawValue).tag(source)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.trailing, 8)
+            }
+
             VStack(alignment: .leading, spacing: 2) {
-                Text("Codex Skills")
+                Text(source == .local ? "Codex Skills" : "Clawdhub")
                     .font(.title2.bold())
                     .foregroundStyle(.primary)
                 Text("\(skillCount) skills")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
         }
         .padding(.vertical, 6)
         .textCase(nil)
+    }
+}
+
+private struct RemoteSkillRowView: View {
+    let skill: RemoteSkill
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(skill.displayName)
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            if let summary = skill.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            if let version = skill.version {
+                Text("Version \(version)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
     }
 }
 private struct SkillRowView: View {
