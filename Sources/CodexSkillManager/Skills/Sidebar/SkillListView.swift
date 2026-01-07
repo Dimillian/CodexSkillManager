@@ -3,8 +3,7 @@ import SwiftUI
 struct SkillListView: View {
     @Environment(SkillStore.self) private var store
 
-    let localCodexSkills: [Skill]
-    let localClaudeSkills: [Skill]
+    let localSkills: [Skill]
     let remoteLatestSkills: [RemoteSkill]
     let remoteSearchResults: [RemoteSkill]
     let remoteSearchState: RemoteSkillStore.LoadState
@@ -16,24 +15,54 @@ struct SkillListView: View {
     @Binding var localSelection: Skill.ID?
     @Binding var remoteSelection: RemoteSkill.ID?
 
+    private struct LocalSkillGroup: Identifiable {
+        let id: Skill.ID
+        let skill: Skill
+        let installedPlatforms: Set<SkillPlatform>
+        let deleteIDs: [Skill.ID]
+    }
+
+    private var groupedLocalSkills: [LocalSkillGroup] {
+        let grouped = Dictionary(grouping: localSkills, by: { $0.name })
+        let preferredPlatformOrder: [SkillPlatform] = [.codex, .claude]
+
+        return grouped.compactMap { slug, filteredSkills in
+            let allSkillsForSlug = store.skills.filter { $0.name == slug }
+
+            guard let preferredSelection = preferredPlatformOrder
+                .compactMap({ platform in allSkillsForSlug.first(where: { $0.platform == platform }) })
+                .first ?? allSkillsForSlug.first else {
+                return nil
+            }
+
+            let preferredContent = preferredPlatformOrder
+                .compactMap({ platform in filteredSkills.first(where: { $0.platform == platform }) })
+                .first ?? filteredSkills.first ?? preferredSelection
+
+            return LocalSkillGroup(
+                id: preferredSelection.id,
+                skill: preferredContent,
+                installedPlatforms: Set(allSkillsForSlug.map(\.platform)),
+                deleteIDs: allSkillsForSlug.map(\.id)
+            )
+        }
+        .sorted { lhs, rhs in
+            lhs.skill.displayName.localizedCaseInsensitiveCompare(rhs.skill.displayName) == .orderedAscending
+        }
+    }
+
     var body: some View {
         List(selection: source == .local ? $localSelection : $remoteSelection) {
             if source == .local {
                 SidebarHeaderView(
-                    skillCount: localCodexSkills.count + localClaudeSkills.count,
+                    skillCount: groupedLocalSkills.count,
                     source: $source
                 )
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
 
-                Section("Codex") {
-                    localSectionContent(localCodexSkills)
-                }
-
-                Section("Claude Code") {
-                    localSectionContent(localClaudeSkills)
-                }
+                localSectionContent(groupedLocalSkills)
             } else {
                 SidebarHeaderView(
                     skillCount: remoteLatestSkills.count,
@@ -127,17 +156,20 @@ struct SkillListView: View {
     }
 
     @ViewBuilder
-    private func localSectionContent(_ skills: [Skill]) -> some View {
+    private func localSectionContent(_ skills: [LocalSkillGroup]) -> some View {
         if skills.isEmpty {
             Text("No skills yet.")
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 8)
         } else {
             ForEach(skills) { skill in
-                SkillRowView(skill: skill)
+                SkillRowView(
+                    skill: skill.skill,
+                    installedPlatforms: skill.installedPlatforms
+                )
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
-                            Task { await store.deleteSkills(ids: [skill.id]) }
+                            Task { await store.deleteSkills(ids: skill.deleteIDs) }
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -146,7 +178,7 @@ struct SkillListView: View {
             .onDelete { offsets in
                 let ids = offsets
                     .filter { skills.indices.contains($0) }
-                    .map { skills[$0].id }
+                    .flatMap { skills[$0].deleteIDs }
                 Task { await store.deleteSkills(ids: ids) }
             }
         }

@@ -28,7 +28,6 @@ struct Skill: Identifiable, Hashable {
 
     var tagLabels: [String] {
         var labels: [String] = []
-        labels.append(platform.rawValue)
         labels.append(label(for: stats.references, singular: "reference"))
         labels.append(label(for: stats.assets, singular: "asset"))
         labels.append(label(for: stats.scripts, singular: "script"))

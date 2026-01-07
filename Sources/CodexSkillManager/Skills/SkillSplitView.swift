@@ -23,14 +23,6 @@ struct SkillSplitView: View {
         }
     }
 
-    private var filteredCodexSkills: [Skill] {
-        filteredSkills.filter { $0.platform == .codex }
-    }
-
-    private var filteredClaudeSkills: [Skill] {
-        filteredSkills.filter { $0.platform == .claude }
-    }
-
     var body: some View {
         splitView
             .modifier(
@@ -81,8 +73,7 @@ struct SkillSplitView: View {
 
     private var listView: some View {
         SkillListView(
-            localCodexSkills: filteredCodexSkills,
-            localClaudeSkills: filteredClaudeSkills,
+            localSkills: filteredSkills,
             remoteLatestSkills: remoteStore.latestSkills,
             remoteSearchResults: remoteStore.searchResults,
             remoteSearchState: remoteStore.searchState,

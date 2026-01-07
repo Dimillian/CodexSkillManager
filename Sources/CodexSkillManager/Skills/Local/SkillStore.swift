@@ -57,6 +57,7 @@ import Observation
                 selectedSkillID = self.skills.first?.id
             }
 
+            normalizeSelectionToPreferredPlatform()
             await loadSelectedSkill()
         } catch {
             listState = .failed(error.localizedDescription)
@@ -133,6 +134,22 @@ import Observation
 
     func installedPlatforms(for slug: String) -> Set<SkillPlatform> {
         Set(skills.filter { $0.name == slug }.map(\.platform))
+    }
+
+    private func normalizeSelectionToPreferredPlatform() {
+        guard let selectedSkillID,
+              let selected = skills.first(where: { $0.id == selectedSkillID }) else {
+            return
+        }
+
+        let slug = selected.name
+        let candidates = skills.filter { $0.name == slug }
+        guard candidates.count > 1 else { return }
+
+        let preferred = candidates.first(where: { $0.platform == .codex }) ?? candidates.first
+        if let preferred, preferred.id != selectedSkillID {
+            self.selectedSkillID = preferred.id
+        }
     }
 
     func installRemoteSkill(

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SkillRowView: View {
     let skill: Skill
+    let installedPlatforms: Set<SkillPlatform>
 
     private var visibleTags: [String] {
         Array(skill.tagLabels.prefix(3))
@@ -22,14 +23,19 @@ struct SkillRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
 
-            if !skill.tagLabels.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(visibleTags, id: \.self) { tag in
-                        TagView(text: tag)
+            HStack(spacing: 6) {
+                ForEach(SkillPlatform.allCases) { platform in
+                    if installedPlatforms.contains(platform) {
+                        TagView(text: platform.rawValue, tint: .green)
                     }
-                    if overflowCount > 0 {
-                        TagView(text: "+\(overflowCount) more")
-                    }
+                }
+
+                ForEach(visibleTags, id: \.self) { tag in
+                    TagView(text: tag)
+                }
+
+                if overflowCount > 0 {
+                    TagView(text: "+\(overflowCount) more")
                 }
             }
         }
