@@ -1,19 +1,19 @@
 import Foundation
 
-struct SkillStats: Hashable {
+struct SkillStats: Hashable, Sendable {
     let references: Int
     let assets: Int
     let scripts: Int
     let templates: Int
 }
 
-struct SkillReference: Identifiable, Hashable {
+struct SkillReference: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let url: URL
 }
 
-struct Skill: Identifiable, Hashable {
+struct Skill: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let displayName: String

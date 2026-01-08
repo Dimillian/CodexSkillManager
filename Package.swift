@@ -20,6 +20,9 @@ let package = Package(
             path: "Sources/CodexSkillManager",
             swiftSettings: [
                 .define("ENABLE_SPARKLE"),
+                .unsafeFlags(["-default-isolation", "MainActor"]),
+                .unsafeFlags(["-strict-concurrency=complete"]),
+                .unsafeFlags(["-warn-concurrency"]),
             ])
     ]
 )

@@ -27,6 +27,7 @@ import Observation
     var detailOwner: RemoteSkillOwner?
 
     private let apiClient: RemoteSkillClient
+    private let fileWorker = SkillFileWorker()
     private var activeSearchToken = 0
     private var activeSearchQuery = ""
 
@@ -90,69 +91,14 @@ import Observation
 
         do {
             detailOwner = try await apiClient.fetchDetail(skill.slug)
-
             let zipURL = try await apiClient.download(skill.slug, skill.latestVersion)
-            let fileManager = FileManager.default
-            let tempRoot = fileManager.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-
-            try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-            try unzip(zipURL, to: tempRoot)
-
-            guard let skillRoot = findSkillRoot(in: tempRoot) else {
-                throw NSError(domain: "RemoteSkill", code: 3)
-            }
-
-            let skillFileURL = skillRoot.appendingPathComponent("SKILL.md")
-            let raw = try String(contentsOf: skillFileURL, encoding: .utf8)
-            detailMarkdown = stripFrontmatter(from: raw)
+            let markdown = try await fileWorker.loadRawMarkdown(from: zipURL)
+            detailMarkdown = stripFrontmatter(from: markdown)
             detailState = .loaded
-
-            try? fileManager.removeItem(at: tempRoot)
-            try? fileManager.removeItem(at: zipURL)
         } catch {
             detailState = .failed(error.localizedDescription)
             detailMarkdown = ""
         }
     }
 
-    private func unzip(_ url: URL, to destination: URL) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-x", "-k", url.path, destination.path]
-        try process.run()
-        process.waitUntilExit()
-        if process.terminationStatus != 0 {
-            throw NSError(domain: "RemoteSkill", code: 2)
-        }
-    }
-
-    private func findSkillRoot(in rootURL: URL) -> URL? {
-        let fileManager = FileManager.default
-        let directSkill = rootURL.appendingPathComponent("SKILL.md")
-        if fileManager.fileExists(atPath: directSkill.path) {
-            return rootURL
-        }
-
-        guard let children = try? fileManager.contentsOfDirectory(
-            at: rootURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-
-        let candidateDirs = children.compactMap { url -> URL? in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-            guard values?.isDirectory == true else { return nil }
-            let skillFile = url.appendingPathComponent("SKILL.md")
-            return fileManager.fileExists(atPath: skillFile.path) ? url : nil
-        }
-
-        if candidateDirs.count == 1 {
-            return candidateDirs[0]
-        }
-
-        return nil
-    }
 }

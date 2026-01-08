@@ -18,6 +18,7 @@ struct ImportSkillView: View {
     @State private var status: Status = .idle
     @State private var errorMessage: String = ""
     @State private var installTargets: Set<SkillPlatform> = [.codex]
+    private let importWorker = SkillImportWorker()
 
     private enum Status {
         case idle
@@ -191,7 +192,14 @@ struct ImportSkillView: View {
     }
 
     private func validateFolder(_ folderURL: URL) async {
-        if let candidate = buildCandidate(from: folderURL, temporaryRoot: nil) {
+        if let payload = await importWorker.validateFolder(folderURL) {
+            let candidate = ImportCandidate(
+                rootURL: payload.rootURL,
+                skillFileURL: payload.skillFileURL,
+                skillName: formatTitle(payload.skillName),
+                markdown: payload.markdown,
+                temporaryRoot: payload.temporaryRoot
+            )
             self.candidate = candidate
             status = .valid
         } else {
@@ -201,41 +209,25 @@ struct ImportSkillView: View {
     }
 
     private func validateZip(_ zipURL: URL) async {
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-
         do {
-            try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-            try unzip(zipURL, to: tempRoot)
-
-            if let candidate = buildCandidate(from: tempRoot, temporaryRoot: tempRoot) {
+            if let payload = try await importWorker.validateZip(zipURL) {
+                let candidate = ImportCandidate(
+                    rootURL: payload.rootURL,
+                    skillFileURL: payload.skillFileURL,
+                    skillName: formatTitle(payload.skillName),
+                    markdown: payload.markdown,
+                    temporaryRoot: payload.temporaryRoot
+                )
                 self.candidate = candidate
                 status = .valid
             } else {
                 status = .invalid
                 errorMessage = "This zip doesn’t contain a SKILL.md file."
-                cleanupTemporaryRoot(tempRoot)
             }
         } catch {
             status = .invalid
             errorMessage = "Unable to read the zip file."
-            cleanupTemporaryRoot(tempRoot)
         }
-    }
-
-    private func buildCandidate(from rootURL: URL, temporaryRoot: URL?) -> ImportCandidate? {
-        guard let skillRoot = findSkillRoot(in: rootURL) else { return nil }
-        let skillFileURL = skillRoot.appendingPathComponent("SKILL.md")
-        guard let markdown = try? String(contentsOf: skillFileURL, encoding: .utf8) else { return nil }
-
-        let skillName = skillRoot.lastPathComponent
-        return ImportCandidate(
-            rootURL: skillRoot,
-            skillFileURL: skillFileURL,
-            skillName: formatTitle(skillName),
-            markdown: markdown,
-            temporaryRoot: temporaryRoot
-        )
     }
 
     private func importCandidate() async {
@@ -244,25 +236,18 @@ struct ImportSkillView: View {
         status = .importing
 
         do {
-            let fileManager = FileManager.default
             let shouldMove = candidate.temporaryRoot == nil && installTargets.count == 1
-
-            for platform in installTargets {
-                let destinationRoot = platform.rootURL
-                try fileManager.createDirectory(at: destinationRoot, withIntermediateDirectories: true)
-                let finalURL = uniqueDestinationURL(
-                    base: destinationRoot.appendingPathComponent(candidate.rootURL.lastPathComponent)
-                )
-                if fileManager.fileExists(atPath: finalURL.path) {
-                    try fileManager.removeItem(at: finalURL)
-                }
-
-                if shouldMove {
-                    try fileManager.moveItem(at: candidate.rootURL, to: finalURL)
-                } else {
-                    try fileManager.copyItem(at: candidate.rootURL, to: finalURL)
-                }
+            let destinations = installTargets.map {
+                SkillFileWorker.InstallDestination(rootURL: $0.rootURL, storageKey: $0.storageKey)
             }
+            let payload = SkillImportWorker.ImportCandidatePayload(
+                rootURL: candidate.rootURL,
+                skillFileURL: candidate.skillFileURL,
+                skillName: candidate.skillName,
+                markdown: candidate.markdown,
+                temporaryRoot: candidate.temporaryRoot
+            )
+            try await importWorker.importCandidate(payload, destinations: destinations, shouldMove: shouldMove)
 
             await store.loadSkills()
             status = .imported
@@ -292,52 +277,8 @@ struct ImportSkillView: View {
 
     private func cleanupCandidate() {
         if let temp = candidate?.temporaryRoot {
-            cleanupTemporaryRoot(temp)
+            Task { await importWorker.cleanupTemporaryRoot(temp) }
         }
         candidate = nil
-    }
-
-    private func cleanupTemporaryRoot(_ url: URL) {
-        try? FileManager.default.removeItem(at: url)
-    }
-
-    private func unzip(_ url: URL, to destination: URL) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-x", "-k", url.path, destination.path]
-        try process.run()
-        process.waitUntilExit()
-        if process.terminationStatus != 0 {
-            throw NSError(domain: "ImportSkill", code: 1)
-        }
-    }
-
-    private func findSkillRoot(in rootURL: URL) -> URL? {
-        let fileManager = FileManager.default
-        let directSkill = rootURL.appendingPathComponent("SKILL.md")
-        if fileManager.fileExists(atPath: directSkill.path) {
-            return rootURL
-        }
-
-        guard let children = try? fileManager.contentsOfDirectory(
-            at: rootURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-
-        let candidateDirs = children.compactMap { url -> URL? in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-            guard values?.isDirectory == true else { return nil }
-            let skillFile = url.appendingPathComponent("SKILL.md")
-            return fileManager.fileExists(atPath: skillFile.path) ? url : nil
-        }
-
-        if candidateDirs.count == 1 {
-            return candidateDirs[0]
-        }
-
-        return nil
     }
 }

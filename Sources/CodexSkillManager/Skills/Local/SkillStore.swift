@@ -47,6 +47,10 @@ import Observation
     var selectedReferenceID: SkillReference.ID?
     var selectedReferenceMarkdown: String = ""
 
+    private let fileWorker = SkillFileWorker()
+    private let importWorker = SkillImportWorker()
+    private let cliWorker = ClawdhubCLIWorker()
+
     var selectedSkill: Skill? {
         skills.first { $0.id == selectedSkillID }
     }
@@ -61,8 +65,25 @@ import Observation
         detailState = .idle
         referenceState = .idle
         do {
-            let skills = try SkillPlatform.allCases.flatMap { platform in
-                try loadSkills(from: platform.rootURL, platform: platform)
+            let platforms = SkillPlatform.allCases.map { platform in
+                (platform, platform.rootURL, platform.storageKey)
+            }
+            var skills: [Skill] = []
+            for (platform, rootURL, storageKey) in platforms {
+                let scanned = try await fileWorker.scanSkills(at: rootURL, storageKey: storageKey)
+                skills.append(contentsOf: scanned.map { scannedSkill in
+                    Skill(
+                        id: scannedSkill.id,
+                        name: scannedSkill.name,
+                        displayName: scannedSkill.displayName,
+                        description: scannedSkill.description,
+                        platform: platform,
+                        folderURL: scannedSkill.folderURL,
+                        skillMarkdownURL: scannedSkill.skillMarkdownURL,
+                        references: scannedSkill.references,
+                        stats: scannedSkill.stats
+                    )
+                })
             }
 
             self.skills = skills.sorted {
@@ -102,7 +123,7 @@ import Observation
         selectedReferenceMarkdown = ""
 
         do {
-            let raw = try String(contentsOf: skillURL, encoding: .utf8)
+            let raw = try await fileWorker.loadMarkdown(at: skillURL)
             selectedMarkdown = stripFrontmatter(from: raw)
             detailState = .loaded
         } catch {
@@ -126,7 +147,7 @@ import Observation
         referenceState = .loading
 
         do {
-            let raw = try String(contentsOf: selectedReference.url, encoding: .utf8)
+            let raw = try await fileWorker.loadMarkdown(at: selectedReference.url)
             selectedReferenceMarkdown = stripFrontmatter(from: raw)
             referenceState = .loaded
         } catch {
@@ -194,7 +215,7 @@ import Observation
 
     func skillNeedsPublish(_ skill: Skill) async -> Bool {
         do {
-            let hash = try await Task.detached { try Self.computeSkillHash(for: skill) }.value
+            let hash = try await fileWorker.computeSkillHash(for: skill.folderURL)
             let state = loadPublishState(for: skill.name)
             return state?.lastPublishedHash != hash
         } catch {
@@ -209,61 +230,26 @@ import Observation
         tags: [String],
         publishedVersion: String?
     ) async throws {
-        try await Task.detached {
-            guard let bunx = Self.resolveBunxPath() else {
-                throw NSError(domain: "ClawdhubPublish", code: 1, userInfo: [
-                    NSLocalizedDescriptionKey: "Bun is not installed."
-                ])
-            }
-            let version = Self.publishVersion(for: publishedVersion, bump: bump)
-            let args = Self.publishArguments(
-                skill: skill,
-                version: version,
-                changelog: changelog,
-                tags: tags
-            )
-            _ = try Self.runProcess(
-                executable: bunx,
-                arguments: args
-            )
-        }.value
+        try await cliWorker.publishSkill(
+            skillURL: skill.folderURL,
+            publishedVersion: publishedVersion,
+            bump: bump,
+            changelog: changelog,
+            tags: tags
+        )
 
-        let hash = try await Task.detached { try Self.computeSkillHash(for: skill) }.value
+        let hash = try await fileWorker.computeSkillHash(for: skill.folderURL)
         savePublishState(for: skill.name, hash: hash)
     }
 
     func fetchClawdhubStatus() async -> CliStatus {
-        await Task.detached {
-            guard let bunx = Self.resolveBunxPath() else {
-                return CliStatus(
-                    isInstalled: false,
-                    isLoggedIn: false,
-                    username: nil,
-                    errorMessage: "Bun is not installed."
-                )
-            }
-
-            do {
-                let whoami = try Self.runProcess(
-                    executable: bunx,
-                    arguments: ["clawdhub@latest", "whoami"]
-                )
-                let username = Self.lastNonEmptyLine(from: whoami)
-                return CliStatus(
-                    isInstalled: true,
-                    isLoggedIn: !username.isEmpty,
-                    username: username.isEmpty ? nil : username,
-                    errorMessage: nil
-                )
-            } catch {
-                return CliStatus(
-                    isInstalled: true,
-                    isLoggedIn: false,
-                    username: nil,
-                    errorMessage: nil
-                )
-            }
-        }.value
+        let status = await cliWorker.fetchStatus()
+        return CliStatus(
+            isInstalled: status.isInstalled,
+            isLoggedIn: status.isLoggedIn,
+            username: status.username,
+            errorMessage: status.errorMessage
+        )
     }
 
 
@@ -292,211 +278,25 @@ import Observation
             throw NSError(domain: "RemoteSkill", code: 3)
         }
 
-        let fileManager = FileManager.default
         let zipURL = try await client.download(skill.slug, skill.latestVersion)
-
-        let tempRoot = fileManager.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-        defer {
-            try? fileManager.removeItem(at: tempRoot)
-            try? fileManager.removeItem(at: zipURL)
+        let destinationList = destinations.map {
+            SkillFileWorker.InstallDestination(rootURL: $0.rootURL, storageKey: $0.storageKey)
         }
-
-        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        try unzip(zipURL, to: tempRoot)
-
-        guard let skillRoot = findSkillRoot(in: tempRoot) else {
-            throw NSError(domain: "RemoteSkill", code: 1)
-        }
-
-        for platform in destinations {
-            let destinationRoot = platform.rootURL
-            try fileManager.createDirectory(at: destinationRoot, withIntermediateDirectories: true)
-
-            let finalURL = destinationRoot.appendingPathComponent(skill.slug)
-            if fileManager.fileExists(atPath: finalURL.path) {
-                try fileManager.removeItem(at: finalURL)
-            }
-            try fileManager.copyItem(at: skillRoot, to: finalURL)
-            try writeClawdhubOrigin(
-                at: finalURL,
-                slug: skill.slug,
-                version: skill.latestVersion
-            )
-        }
+        let selectedID = try await fileWorker.installRemoteSkill(
+            zipURL: zipURL,
+            slug: skill.slug,
+            version: skill.latestVersion,
+            destinations: destinationList
+        )
 
         await loadSkills()
-        if let platform = destinations.first {
-            selectedSkillID = "\(platform.storageKey)-\(skill.slug)"
+        if let selectedID {
+            self.selectedSkillID = selectedID
         }
-    }
-
-    private func unzip(_ url: URL, to destination: URL) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-x", "-k", url.path, destination.path]
-        try process.run()
-        process.waitUntilExit()
-        if process.terminationStatus != 0 {
-            throw NSError(domain: "RemoteSkill", code: 2)
-        }
-    }
-
-    nonisolated private static func publishArguments(
-        skill: Skill,
-        version: String,
-        changelog: String,
-        tags: [String]
-    ) -> [String] {
-        var args = [
-            "clawdhub@latest",
-            "publish",
-            skill.folderURL.path,
-            "--version",
-            version,
-        ]
-
-        if !changelog.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            args.append(contentsOf: ["--changelog", changelog])
-        }
-
-        let cleanedTags = tags
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        if !cleanedTags.isEmpty {
-            args.append(contentsOf: ["--tags", cleanedTags.joined(separator: ",")])
-        }
-
-        return args
-    }
-
-    nonisolated private static func publishVersion(for latest: String?, bump: PublishBump) -> String {
-        guard let latest, let next = bumpVersion(latest, bump: bump) else {
-            return "1.0.0"
-        }
-        return next
-    }
-
-    nonisolated private static func bumpVersion(_ current: String, bump: PublishBump) -> String? {
-        let parts = current.split(separator: ".").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
-        var major = parts[0]
-        var minor = parts[1]
-        var patch = parts[2]
-
-        switch bump {
-        case .major:
-            major += 1
-            minor = 0
-            patch = 0
-        case .minor:
-            minor += 1
-            patch = 0
-        case .patch:
-            patch += 1
-        }
-
-        return "\(major).\(minor).\(patch)"
     }
 
     func nextVersion(from current: String, bump: PublishBump) -> String? {
-        Self.bumpVersion(current, bump: bump)
-    }
-
-    nonisolated private static func resolveBunxPath() -> String? {
-        let fileManager = FileManager.default
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let candidates = [
-            "\(home)/.bun/bin/bunx",
-            "/opt/homebrew/bin/bunx",
-            "/usr/local/bin/bunx",
-            "/usr/bin/bunx"
-        ]
-
-        for path in candidates where fileManager.isExecutableFile(atPath: path) {
-            return path
-        }
-
-        if let which = try? runProcess(executable: "/usr/bin/env", arguments: ["which", "bunx"]) {
-            let trimmed = which.trimmingCharacters(in: .whitespacesAndNewlines)
-            if fileManager.isExecutableFile(atPath: trimmed) {
-                return trimmed
-            }
-        }
-
-        return nil
-    }
-
-    nonisolated private static func lastNonEmptyLine(from output: String) -> String {
-        let cleaned = output.replacingOccurrences(
-            of: "\u{001B}\\[[0-9;]*[mK]",
-            with: "",
-            options: .regularExpression
-        )
-        return cleaned
-            .components(separatedBy: .newlines)
-            .reversed()
-            .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
-
-    nonisolated private static func runProcess(executable: String, arguments: [String]) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        process.environment = defaultEnvironment()
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-
-        let output = String(data: outputData, encoding: .utf8) ?? ""
-        let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
-        let combinedOutput = [output, errorOutput]
-            .filter { !$0.isEmpty }
-            .joined(separator: output.isEmpty || errorOutput.isEmpty ? "" : "\n")
-
-        if process.terminationStatus != 0 {
-            throw NSError(domain: "ClawdhubPublish", code: Int(process.terminationStatus), userInfo: [
-                NSLocalizedDescriptionKey: errorOutput.isEmpty ? output : errorOutput
-            ])
-        }
-
-        return combinedOutput
-    }
-
-    nonisolated private static func defaultEnvironment() -> [String: String] {
-        var environment = ProcessInfo.processInfo.environment
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-
-        if environment["HOME"]?.isEmpty ?? true {
-            environment["HOME"] = home
-        }
-
-        let standardPaths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
-        if let existing = environment["PATH"], !existing.isEmpty {
-            let parts = existing.split(separator: ":").map(String.init)
-            let missing = standardPaths.filter { !parts.contains($0) }
-            if !missing.isEmpty {
-                environment["PATH"] = parts.joined(separator: ":") + ":" + missing.joined(separator: ":")
-            }
-        } else {
-            environment["PATH"] = standardPaths.joined(separator: ":")
-        }
-
-        if environment["BUN_INSTALL"]?.isEmpty ?? true {
-            environment["BUN_INSTALL"] = "\(home)/.bun"
-        }
-
-        return environment
+        ClawdhubCLIWorker.bumpVersion(current, bump: bump)
     }
 
     private func publishStateDirectory() -> URL {
@@ -526,143 +326,5 @@ import Observation
         }
     }
 
-    nonisolated private static func computeSkillHash(for skill: Skill) throws -> String {
-        let fileManager = FileManager.default
-        let rootURL = skill.folderURL
 
-        guard let enumerator = fileManager.enumerator(
-            at: rootURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return ""
-        }
-
-        var files: [URL] = []
-        for case let fileURL as URL in enumerator {
-            let path = fileURL.path
-            if path.contains("/.git/") || path.contains("/.clawdhub/") {
-                continue
-            }
-            if fileURL.lastPathComponent == ".DS_Store" {
-                continue
-            }
-            let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
-            guard values?.isRegularFile == true else { continue }
-            files.append(fileURL)
-        }
-
-        files.sort { $0.path < $1.path }
-
-        var hasher = SHA256()
-        for fileURL in files {
-            guard let data = try? Data(contentsOf: fileURL),
-                  String(data: data, encoding: .utf8) != nil else {
-                continue
-            }
-            let relative = fileURL.path.replacingOccurrences(of: rootURL.path, with: "")
-            hasher.update(data: Data(relative.utf8))
-            hasher.update(data: Data([0]))
-            hasher.update(data: data)
-            hasher.update(data: Data([0]))
-        }
-
-        let digest = hasher.finalize()
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
-
-    private func findSkillRoot(in rootURL: URL) -> URL? {
-        let fileManager = FileManager.default
-        let directSkill = rootURL.appendingPathComponent("SKILL.md")
-        if fileManager.fileExists(atPath: directSkill.path) {
-            return rootURL
-        }
-
-        guard let children = try? fileManager.contentsOfDirectory(
-            at: rootURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-
-        let candidateDirs = children.compactMap { url -> URL? in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-            guard values?.isDirectory == true else { return nil }
-            let skillFile = url.appendingPathComponent("SKILL.md")
-            return fileManager.fileExists(atPath: skillFile.path) ? url : nil
-        }
-
-        if candidateDirs.count == 1 {
-            return candidateDirs[0]
-        }
-
-        return nil
-    }
-
-    private func writeClawdhubOrigin(at skillRoot: URL, slug: String, version: String?) throws {
-        let originDir = skillRoot
-            .appendingPathComponent(".clawdhub", isDirectory: true)
-        try FileManager.default.createDirectory(at: originDir, withIntermediateDirectories: true)
-
-        let originURL = originDir.appendingPathComponent("origin.json")
-        let payload: [String: Any] = [
-            "slug": slug,
-            "version": version ?? "latest",
-            "source": "clawdhub",
-            "installedAt": Int(Date().timeIntervalSince1970)
-        ]
-        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted])
-        try data.write(to: originURL, options: [.atomic])
-    }
-
-    private func loadSkills(from baseURL: URL, platform: SkillPlatform) throws -> [Skill] {
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: baseURL.path) else {
-            return []
-        }
-
-        let items = try fileManager.contentsOfDirectory(
-            at: baseURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        )
-
-        return items.compactMap { url -> Skill? in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-            guard values?.isDirectory == true else { return nil }
-
-            let name = url.lastPathComponent
-            let skillFileURL = url.appendingPathComponent("SKILL.md")
-            let hasSkillFile = fileManager.fileExists(atPath: skillFileURL.path)
-
-            guard hasSkillFile else { return nil }
-
-            let markdown = (try? String(contentsOf: skillFileURL, encoding: .utf8)) ?? ""
-            let metadata = parseMetadata(from: markdown)
-
-            let references = referenceFiles(in: url.appendingPathComponent("references"))
-            let referencesCount = references.count
-            let assetsCount = countEntries(in: url.appendingPathComponent("assets"))
-            let scriptsCount = countEntries(in: url.appendingPathComponent("scripts"))
-            let templatesCount = countEntries(in: url.appendingPathComponent("templates"))
-
-            return Skill(
-                id: "\(platform.storageKey)-\(name)",
-                name: name,
-                displayName: formatTitle(metadata.name ?? name),
-                description: metadata.description ?? "No description available.",
-                platform: platform,
-                folderURL: url,
-                skillMarkdownURL: skillFileURL,
-                references: references,
-                stats: SkillStats(
-                    references: referencesCount,
-                    assets: assetsCount,
-                    scripts: scriptsCount,
-                    templates: templatesCount
-                )
-            )
-        }
-    }
 }
