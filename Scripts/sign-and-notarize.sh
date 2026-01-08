@@ -7,6 +7,12 @@ APP_BUNDLE="${APP_NAME}.app"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 source "$ROOT/version.env"
 ZIP_NAME="${APP_NAME}-${MARKETING_VERSION}.zip"
+SPARKLE_FEED_URL=${SPARKLE_FEED_URL:-"https://raw.githubusercontent.com/Dimillian/CodexSkillManager/main/appcast.xml"}
+
+if [[ -z "${SPARKLE_PUBLIC_KEY:-}" ]]; then
+  echo "Missing SPARKLE_PUBLIC_KEY env var. Sparkle will not be enabled without it." >&2
+  exit 1
+fi
 
 if [[ -z "${APP_STORE_CONNECT_API_KEY_P8:-}" || -z "${APP_STORE_CONNECT_KEY_ID:-}" || -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]]; then
   echo "Missing APP_STORE_CONNECT_* env vars (API key, key id, issuer id)." >&2
@@ -25,7 +31,10 @@ ARCH_LIST=( ${ARCHES_VALUE} )
 for ARCH in "${ARCH_LIST[@]}"; do
   swift build -c release --arch "$ARCH"
 done
-ARCHES="${ARCHES_VALUE}" "$ROOT/Scripts/package_app.sh" release
+ARCHES="${ARCHES_VALUE}" \
+SPARKLE_PUBLIC_KEY="${SPARKLE_PUBLIC_KEY}" \
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL}" \
+"$ROOT/Scripts/package_app.sh" release
 
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${APP_ENTITLEMENTS:-${ENTITLEMENTS_DIR}/${APP_NAME}.entitlements}"
