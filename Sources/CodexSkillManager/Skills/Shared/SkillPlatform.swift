@@ -4,6 +4,7 @@ enum SkillPlatform: String, CaseIterable, Identifiable, Hashable, Sendable {
     case codex = "Codex"
     case claude = "Claude Code"
     case opencode = "OpenCode"
+    case copilot = "GitHub Copilot"
 
     var id: String { rawValue }
 
@@ -15,6 +16,8 @@ enum SkillPlatform: String, CaseIterable, Identifiable, Hashable, Sendable {
             return "claude"
         case .opencode:
             return "opencode"
+        case .copilot:
+            return "copilot"
         }
     }
 
@@ -27,6 +30,8 @@ enum SkillPlatform: String, CaseIterable, Identifiable, Hashable, Sendable {
             return home.appendingPathComponent(".claude/skills")
         case .opencode:
             return home.appendingPathComponent(".config/opencode/skill")
+        case .copilot:
+            return home.appendingPathComponent(".copilot/skills")
         }
     }
 
@@ -37,6 +42,8 @@ enum SkillPlatform: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .claude:
             return "Install in \(rootURL.path)"
         case .opencode:
+            return "Install in \(rootURL.path)"
+        case .copilot:
             return "Install in \(rootURL.path)"
         }
     }
@@ -49,6 +56,8 @@ enum SkillPlatform: String, CaseIterable, Identifiable, Hashable, Sendable {
             return Color(red: 217.0 / 255.0, green: 119.0 / 255.0, blue: 87.0 / 255.0)
         case .opencode:
             return Color(red: 76.0 / 255.0, green: 144.0 / 255.0, blue: 226.0 / 255.0)
+        case .copilot:
+            return Color(red: 77.0 / 255.0, green: 212.0 / 255.0, blue: 212.0 / 255.0)
         }
     }
 }
