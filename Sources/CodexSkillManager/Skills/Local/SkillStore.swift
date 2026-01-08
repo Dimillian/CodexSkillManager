@@ -172,6 +172,10 @@ import Observation
         return !FileManager.default.fileExists(atPath: originURL.path)
     }
 
+    func clawdhubOrigin(for skill: Skill) async -> SkillFileWorker.ClawdhubOrigin? {
+        await fileWorker.readClawdhubOrigin(from: skill.folderURL)
+    }
+
     func isInstalled(slug: String) -> Bool {
         skills.contains { $0.name == slug }
     }
@@ -295,8 +299,45 @@ import Observation
         }
     }
 
+    func updateInstalledSkill(
+        slug: String,
+        version: String?,
+        client: RemoteSkillClient
+    ) async throws {
+        let destinations = installedPlatforms(for: slug)
+        guard !destinations.isEmpty else { return }
+
+        let zipURL = try await client.download(slug, version)
+        let destinationList = destinations.map {
+            SkillFileWorker.InstallDestination(rootURL: $0.rootURL, storageKey: $0.storageKey)
+        }
+        let selectedID = try await fileWorker.installRemoteSkill(
+            zipURL: zipURL,
+            slug: slug,
+            version: version,
+            destinations: destinationList
+        )
+
+        await loadSkills()
+        if let selectedID {
+            self.selectedSkillID = selectedID
+        }
+    }
+
     func nextVersion(from current: String, bump: PublishBump) -> String? {
         ClawdhubCLIWorker.bumpVersion(current, bump: bump)
+    }
+
+    func isNewerVersion(_ latest: String, than installed: String) -> Bool {
+        let latestParts = latest.split(separator: ".").compactMap { Int($0) }
+        let installedParts = installed.split(separator: ".").compactMap { Int($0) }
+        guard latestParts.count == 3, installedParts.count == 3 else { return false }
+        for index in 0..<3 {
+            if latestParts[index] != installedParts[index] {
+                return latestParts[index] > installedParts[index]
+            }
+        }
+        return false
     }
 
     private func publishStateDirectory() -> URL {

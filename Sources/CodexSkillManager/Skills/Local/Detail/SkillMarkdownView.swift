@@ -10,6 +10,11 @@ struct SkillMarkdownView: View {
 
     @State private var needsPublish = false
     @State private var isOwned = false
+    @State private var clawdhubOrigin: SkillFileWorker.ClawdhubOrigin?
+    @State private var installedVersion: String?
+    @State private var latestVersion: String?
+    @State private var updateAvailable = false
+    @State private var isUpdating = false
     @State private var isCheckingPublish = false
     @State private var showingPublishSheet = false
     @State private var isPublishing = false
@@ -31,6 +36,8 @@ struct SkillMarkdownView: View {
             VStack(alignment: .leading, spacing: 16) {
                 if isOwned {
                     publishSection
+                } else if clawdhubOrigin != nil {
+                    installSection
                 }
                 Markdown(markdown)
 
@@ -174,11 +181,58 @@ struct SkillMarkdownView: View {
         }
     }
 
+    private var installSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            publishHeader
+            installContent
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
+    }
+
+    @ViewBuilder
+    private var installContent: some View {
+        if isCheckingPublish {
+            Text("Checking Clawdhub status…")
+                .foregroundStyle(.secondary)
+        } else {
+            if let installedVersion {
+                Text("Installed version \(installedVersion)")
+                    .foregroundStyle(.secondary)
+            }
+            if let latestVersion, updateAvailable {
+                Text("Update available: v\(latestVersion)")
+                    .foregroundStyle(.secondary)
+            } else if latestVersion != nil {
+                Text("You’re up to date.")
+                    .foregroundStyle(.secondary)
+            }
+
+            if updateAvailable, let latestVersion {
+                Button(isUpdating ? "Updating…" : "Update to v\(latestVersion)") {
+                    Task { await updateSkill() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isUpdating)
+            }
+        }
+    }
+
     private func refreshPublishState() async {
         resetPublishState()
         let owned = store.isOwnedSkill(skill)
         isOwned = owned
-        guard owned else { return }
+        if owned {
+            await refreshOwnedState()
+        } else {
+            await refreshInstalledState()
+        }
+    }
+
+    private func refreshOwnedState() async {
         isCheckingCli = true
         cliStatus = await store.fetchClawdhubStatus()
         isCheckingCli = false
@@ -192,9 +246,32 @@ struct SkillMarkdownView: View {
         }
     }
 
+    private func refreshInstalledState() async {
+        isCheckingPublish = true
+        let origin = await store.clawdhubOrigin(for: skill)
+        clawdhubOrigin = origin
+        installedVersion = origin?.version
+        guard let origin else {
+            isCheckingPublish = false
+            return
+        }
+        let latest = await fetchLatestVersion(slug: origin.slug)
+        latestVersion = latest
+        if let latest, let installed = installedVersion {
+            updateAvailable = store.isNewerVersion(latest, than: installed)
+        } else {
+            updateAvailable = false
+        }
+        isCheckingPublish = false
+    }
+
     private func resetPublishState() {
         isOwned = false
         needsPublish = false
+        clawdhubOrigin = nil
+        installedVersion = nil
+        latestVersion = nil
+        updateAvailable = false
         publishedVersion = nil
         cliStatus = SkillStore.CliStatus(
             isInstalled: false,
@@ -229,6 +306,22 @@ struct SkillMarkdownView: View {
         isPublishing = false
     }
 
+    private func updateSkill() async {
+        guard let origin = clawdhubOrigin else { return }
+        isUpdating = true
+        do {
+            try await store.updateInstalledSkill(
+                slug: origin.slug,
+                version: latestVersion,
+                client: remoteStore.client
+            )
+            await refreshInstalledState()
+        } catch {
+            publishErrorMessage = error.localizedDescription
+        }
+        isUpdating = false
+    }
+
     private func copyLoginCommand() {
         let command = "bunx clawdhub@latest login"
         let pasteboard = NSPasteboard.general
@@ -244,6 +337,14 @@ struct SkillMarkdownView: View {
     private func fetchPublishedVersion() async -> String? {
         do {
             return try await remoteStore.client.fetchLatestVersion(skill.name)
+        } catch {
+            return nil
+        }
+    }
+
+    private func fetchLatestVersion(slug: String) async -> String? {
+        do {
+            return try await remoteStore.client.fetchLatestVersion(slug)
         } catch {
             return nil
         }

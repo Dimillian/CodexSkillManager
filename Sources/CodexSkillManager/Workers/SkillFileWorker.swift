@@ -18,6 +18,11 @@ actor SkillFileWorker {
         let stats: SkillStats
     }
 
+    struct ClawdhubOrigin: Sendable {
+        let slug: String
+        let version: String?
+    }
+
     func loadRawMarkdown(from zipURL: URL) throws -> String {
         let fileManager = FileManager.default
         let tempRoot = fileManager.temporaryDirectory
@@ -165,6 +170,20 @@ actor SkillFileWorker {
 
         let digest = hasher.finalize()
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    func readClawdhubOrigin(from skillRoot: URL) -> ClawdhubOrigin? {
+        let originURL = skillRoot
+            .appendingPathComponent(".clawdhub", isDirectory: true)
+            .appendingPathComponent("origin.json")
+        guard let data = try? Data(contentsOf: originURL),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let slug = json["slug"] as? String else {
+            return nil
+        }
+
+        let version = json["version"] as? String
+        return ClawdhubOrigin(slug: slug, version: version)
     }
 
     private func unzip(_ url: URL, to destination: URL) throws {
