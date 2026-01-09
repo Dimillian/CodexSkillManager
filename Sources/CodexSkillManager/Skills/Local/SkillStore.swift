@@ -242,27 +242,25 @@ import Observation
         let grouped = Dictionary(grouping: filteredSkills, by: { $0.name })
         let preferredPlatformOrder: [SkillPlatform] = [.codex, .claude, .opencode, .copilot]
 
-        return grouped.compactMap { slug, filteredSkills in
-            let allSkillsForSlug = skills.filter { $0.name == slug }
-
+        return grouped.compactMap { _, filteredSkills in
             guard let preferredSelection = preferredPlatformOrder
-                .compactMap({ platform in allSkillsForSlug.first(where: { $0.platform == platform }) })
-                .first ?? allSkillsForSlug.first else {
+                .compactMap({ platform in filteredSkills.first(where: { $0.platform == platform }) })
+                .first ?? filteredSkills.first else {
                 return nil
             }
 
             let preferredContent = preferredPlatformOrder
                 .compactMap({ platform in filteredSkills.first(where: { $0.platform == platform }) })
-                .first ?? filteredSkills.first ?? preferredSelection
+                .first ?? preferredSelection
 
-            // Collect platforms from all skills with the same slug
-            let installedPlatforms = Set(allSkillsForSlug.compactMap(\.platform))
+            // Limit platforms to the filtered scope (e.g. custom path sections).
+            let installedPlatforms = Set(filteredSkills.compactMap(\.platform))
 
             return LocalSkillGroup(
                 id: preferredSelection.id,
                 skill: preferredContent,
                 installedPlatforms: installedPlatforms,
-                deleteIDs: allSkillsForSlug.map(\.id)
+                deleteIDs: filteredSkills.map(\.id)
             )
         }
         .sorted { lhs, rhs in
