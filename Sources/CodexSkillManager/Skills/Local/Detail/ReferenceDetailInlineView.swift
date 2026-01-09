@@ -21,6 +21,7 @@ struct ReferenceDetailInlineView: View {
                                    description: Text(message))
         case .loaded:
             Markdown(store.selectedReferenceMarkdown)
+                .textSelection(.enabled)
                 .padding()
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
