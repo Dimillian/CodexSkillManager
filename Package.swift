@@ -26,7 +26,7 @@ let package = Package(
             ]),
         .testTarget(
             name: "CodexSkillManagerTests",
-            dependencies: [],
+            dependencies: ["CodexSkillManager"],
             path: "Tests/CodexSkillManagerTests",
             swiftSettings: [
                 .unsafeFlags(["-strict-concurrency=complete"]),

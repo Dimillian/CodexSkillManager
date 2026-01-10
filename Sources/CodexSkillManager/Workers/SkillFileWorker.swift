@@ -86,12 +86,16 @@ actor SkillFileWorker {
 
     func scanSkills(at baseURL: URL, storageKey: String) throws -> [ScannedSkillData] {
         let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: baseURL.path) else {
+
+        // Directory symlinks can fail URL-based enumeration on macOS.
+        let directoryURL = baseURL.resolvingSymlinksInPath()
+
+        guard fileManager.fileExists(atPath: directoryURL.path) else {
             return []
         }
 
         let items = try fileManager.contentsOfDirectory(
-            at: baseURL,
+            at: directoryURL,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         )
