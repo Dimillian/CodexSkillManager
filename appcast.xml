@@ -5,6 +5,30 @@
         <link>https://raw.githubusercontent.com/Dimillian/CodexSkillManager/main/appcast.xml</link>
         <description>Codex Skill Manager updates</description>
         <item>
+            <title>1.3.2</title>
+            <pubDate>Sun, 18 Jan 2026 09:33:22 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/Dimillian/CodexSkillManager/main/appcast.xml</link>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>CodexSkillManager-1.3.2</title>
+<body>
+<h2>CodexSkillManager-1.3.2</h2>
+<p>What’s New</p>
+<ul>
+<li>Scans Codex skills from both ~/.codex/skills and ~/.codex/skills/public.</li>
+<li>Handles symlinked skill folders more reliably when scanning.</li>
+<li>Adds a download/install button directly in sidebar skill rows.</li>
+<li>Improves compatibility with macOS 15 Sequoia.</li>
+</ul>
+</body>
+</html>]]></description>
+            <enclosure url="https://github.com/Dimillian/CodexSkillManager/releases/download/v1.3.2/CodexSkillManager-1.3.2.zip" length="3642210" type="application/octet-stream" sparkle:edSignature="twAp2YTxCjVHBNzme9YPWDJFAVSVaw5d7m/7AhGpLckm0MGlu3PV6ovpw+df74TcpQYIMrSoJ06UvHU4bDx3Ag=="/>
+        </item>
+        <item>
             <title>1.3.0</title>
             <pubDate>Fri, 09 Jan 2026 17:09:18 +0100</pubDate>
             <link>https://raw.githubusercontent.com/Dimillian/CodexSkillManager/main/appcast.xml</link>
@@ -52,26 +76,6 @@
 </body>
 </html>]]></description>
             <enclosure url="https://github.com/Dimillian/CodexSkillManager/releases/download/v1.2.3/CodexSkillManager-1.2.3.zip" length="3615455" type="application/octet-stream" sparkle:edSignature="qQacEWD/FkZQ/kZ++GNUkfMprCv2oVTd1+0yWHqlVjhG/JoNezTQkz4XKxdlSdfSH+/zAUh1Z7rfHxHUAx0+DQ=="/>
-        </item>
-        <item>
-            <title>1.2.2</title>
-            <pubDate>Thu, 08 Jan 2026 13:29:25 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/Dimillian/CodexSkillManager/main/appcast.xml</link>
-            <sparkle:version>7</sparkle:version>
-            <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<!doctype html>
-<html lang="en">
-<meta charset="utf-8">
-<title>CodexSkillManager-1.2.2</title>
-<body>
-<h2>CodexSkillManager-1.2.2</h2>
-<ul>
-<li>Fix Sparkle update signing and enforce Sparkle keys during release builds.</li>
-</ul>
-</body>
-</html>]]></description>
-            <enclosure url="https://github.com/Dimillian/CodexSkillManager/releases/download/v1.2.2/CodexSkillManager-1.2.2.zip" length="3598661" type="application/octet-stream" sparkle:edSignature="Zq3pyeJnaKTuFu5mXBvFlDd2hQIzcmvpvKntkAdNc/wNolMb5G1Rw72yjcWiUdDYKGGWTfNLiZMuHDk3EvYsDA=="/>
         </item>
     </channel>
 </rss>
