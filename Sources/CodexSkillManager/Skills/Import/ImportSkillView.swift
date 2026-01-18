@@ -18,6 +18,7 @@ struct ImportSkillView: View {
     @State private var status: Status = .idle
     @State private var errorMessage: String = ""
     @State private var installTargets: Set<SkillPlatform> = [.codex]
+    @State private var useSymlink: Bool = true
     private let importWorker = SkillImportWorker()
 
     private enum Status {
@@ -125,6 +126,18 @@ struct ImportSkillView: View {
                         installedTargets: [],
                         selection: $installTargets
                     )
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Import using symlink", isOn: $useSymlink)
+                            .disabled(candidate.temporaryRoot != nil)
+
+                        if candidate.temporaryRoot != nil {
+                            Text("Symlinks cannot be used with zip files (will be copied instead)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     Markdown(candidate.markdown)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -247,7 +260,7 @@ struct ImportSkillView: View {
                 markdown: candidate.markdown,
                 temporaryRoot: candidate.temporaryRoot
             )
-            try await importWorker.importCandidate(payload, destinations: destinations, shouldMove: shouldMove)
+            try await importWorker.importCandidate(payload, destinations: destinations, shouldMove: shouldMove, useSymlink: useSymlink)
 
             await store.loadSkills()
             status = .imported
