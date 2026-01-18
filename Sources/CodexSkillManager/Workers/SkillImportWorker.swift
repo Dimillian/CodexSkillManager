@@ -57,7 +57,8 @@ actor SkillImportWorker {
     func importCandidate(
         _ candidate: ImportCandidatePayload,
         destinations: [SkillFileWorker.InstallDestination],
-        shouldMove: Bool
+        shouldMove: Bool,
+        useSymlink: Bool
     ) throws {
         let fileManager = FileManager.default
 
@@ -71,7 +72,9 @@ actor SkillImportWorker {
                 try fileManager.removeItem(at: finalURL)
             }
 
-            if shouldMove {
+            if useSymlink {
+                try fileManager.createSymbolicLink(at: finalURL, withDestinationURL: candidate.rootURL)
+            } else if shouldMove {
                 try fileManager.moveItem(at: candidate.rootURL, to: finalURL)
             } else {
                 try fileManager.copyItem(at: candidate.rootURL, to: finalURL)

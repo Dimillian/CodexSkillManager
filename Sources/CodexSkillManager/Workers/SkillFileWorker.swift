@@ -101,22 +101,24 @@ actor SkillFileWorker {
         )
 
         return items.compactMap { url -> ScannedSkillData? in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            // Resolve symlinks to properly detect directories
+            let resolvedURL = url.resolvingSymlinksInPath()
+            let values = try? resolvedURL.resourceValues(forKeys: [.isDirectoryKey])
             guard values?.isDirectory == true else { return nil }
 
-            let name = url.lastPathComponent
-            let skillFileURL = url.appendingPathComponent("SKILL.md")
+            let name = resolvedURL.lastPathComponent
+            let skillFileURL = resolvedURL.appendingPathComponent("SKILL.md")
             guard fileManager.fileExists(atPath: skillFileURL.path) else { return nil }
 
             let markdown = (try? String(contentsOf: skillFileURL, encoding: .utf8)) ?? ""
             let metadata = parseMetadata(from: markdown)
 
-            let references = referenceFiles(in: url.appendingPathComponent("references"))
+            let references = referenceFiles(in: resolvedURL.appendingPathComponent("references"))
             let stats = SkillStats(
                 references: references.count,
-                assets: countEntries(in: url.appendingPathComponent("assets")),
-                scripts: countEntries(in: url.appendingPathComponent("scripts")),
-                templates: countEntries(in: url.appendingPathComponent("templates"))
+                assets: countEntries(in: resolvedURL.appendingPathComponent("assets")),
+                scripts: countEntries(in: resolvedURL.appendingPathComponent("scripts")),
+                templates: countEntries(in: resolvedURL.appendingPathComponent("templates"))
             )
 
             return ScannedSkillData(
@@ -124,7 +126,7 @@ actor SkillFileWorker {
                 name: name,
                 displayName: formatTitle(metadata.name ?? name),
                 description: metadata.description ?? "No description available.",
-                folderURL: url,
+                folderURL: resolvedURL,
                 skillMarkdownURL: skillFileURL,
                 references: references,
                 stats: stats
