@@ -61,7 +61,7 @@ struct SkillListView: View {
                         switch source {
                         case .local:
                             await store.loadSkills()
-                        case .clawdhub:
+                        case .molthub:
                             await remoteStore.loadLatest()
                         }
                     }
@@ -138,9 +138,9 @@ struct SkillListView: View {
         // Group user directory skills separately to avoid custom-path slugs hiding them.
         let platformSkills = store.groupedPlatformSkills(from: localSkills)
         let mine = platformSkills.filter { store.isOwnedSkill($0.skill) }
-        let clawdhub = platformSkills.filter { !store.isOwnedSkill($0.skill) }
+        let molthub = platformSkills.filter { !store.isOwnedSkill($0.skill) }
 
-        let hasAnySkills = !mine.isEmpty || !clawdhub.isEmpty || !store.customPaths.isEmpty
+        let hasAnySkills = !mine.isEmpty || !molthub.isEmpty || !store.customPaths.isEmpty
 
         if !hasAnySkills {
             Text("No skills yet.")
@@ -151,8 +151,8 @@ struct SkillListView: View {
             Section("Mine") {
                 localRows(for: mine)
             }
-            Section("Clawdhub") {
-                localRows(for: clawdhub)
+            Section("Molthub") {
+                localRows(for: molthub)
             }
 
             // Custom path sections

@@ -90,7 +90,7 @@
 <h2>CodexSkillManager-1.2.3</h2>
 <ul>
 <li>Add OpenCode as a supported local skill platform.</li>
-<li>Improve Clawdhub browsing with cached detail loading.</li>
+<li>Improve Molthub browsing with cached detail loading.</li>
 <li>Show skill stats consistently in the sidebar and detail view.</li>
 <li>Fix reload behavior and search typing responsiveness.</li>
 </ul>

@@ -2,7 +2,7 @@ import Foundation
 
 enum SkillSource: String, CaseIterable, Identifiable {
     case local = "Local"
-    case clawdhub = "Clawdhub"
+    case molthub = "Molthub"
 
     var id: String { rawValue }
 }

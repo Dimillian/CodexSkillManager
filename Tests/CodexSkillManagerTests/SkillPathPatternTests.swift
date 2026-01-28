@@ -282,13 +282,13 @@ struct PlatformDiscoveryTests {
 struct SkillGroupingTests {
 
     /// Simulates isOwnedSkill logic from SkillStore
-    func isOwnedSkill(_ skill: TestSkill, hasClawdhubOrigin: Bool) -> Bool {
+    func isOwnedSkill(_ skill: TestSkill, hasMolthubOrigin: Bool) -> Bool {
         // Skills from custom paths are always considered "owned"
         if skill.customPath != nil {
             return true
         }
-        // For user directory skills, check for clawdhub origin
-        return !hasClawdhubOrigin
+        // For user directory skills, check for molthub origin
+        return !hasMolthubOrigin
     }
 
     @Test("Custom path skills are always owned")
@@ -304,12 +304,12 @@ struct SkillGroupingTests {
             folderURL: URL(fileURLWithPath: "/Users/test/projects/my-project/.claude/skills/my-skill")
         )
 
-        // Even if it had a clawdhub origin, custom path skills should be owned
-        #expect(isOwnedSkill(skill, hasClawdhubOrigin: false) == true)
-        #expect(isOwnedSkill(skill, hasClawdhubOrigin: true) == true)
+        // Even if it had a molthub origin, custom path skills should be owned
+        #expect(isOwnedSkill(skill, hasMolthubOrigin: false) == true)
+        #expect(isOwnedSkill(skill, hasMolthubOrigin: true) == true)
     }
 
-    @Test("User directory skills ownership depends on clawdhub origin")
+    @Test("User directory skills ownership depends on molthub origin")
     func userDirectorySkillsOwnershipDependsOnOrigin() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let skill = TestSkill(
@@ -320,8 +320,8 @@ struct SkillGroupingTests {
             folderURL: home.appendingPathComponent(".claude/skills/my-skill")
         )
 
-        #expect(isOwnedSkill(skill, hasClawdhubOrigin: false) == true)  // Mine
-        #expect(isOwnedSkill(skill, hasClawdhubOrigin: true) == false)  // Clawdhub
+        #expect(isOwnedSkill(skill, hasMolthubOrigin: false) == true)  // Mine
+        #expect(isOwnedSkill(skill, hasMolthubOrigin: true) == false)  // Molthub
     }
 
     @Test("Skills group correctly by source type")

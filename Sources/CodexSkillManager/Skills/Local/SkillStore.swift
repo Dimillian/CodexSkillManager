@@ -49,7 +49,7 @@ import Observation
 
     private let fileWorker = SkillFileWorker()
     private let importWorker = SkillImportWorker()
-    private let cliWorker = ClawdhubCLIWorker()
+    private let cliWorker = MolthubCLIWorker()
     private let customPathStore: CustomPathStore
 
     init(customPathStore: CustomPathStore = CustomPathStore()) {
@@ -219,14 +219,17 @@ import Observation
         if skill.customPath != nil {
             return true
         }
-        let originURL = skill.folderURL
+        let calwdhubOriginURL = skill.folderURL
             .appendingPathComponent(".clawdhub")
             .appendingPathComponent("origin.json")
-        return !FileManager.default.fileExists(atPath: originURL.path)
+        let originURL = skill.folderURL
+            .appendingPathComponent(".molthub")
+            .appendingPathComponent("origin.json")
+        return !FileManager.default.fileExists(atPath: calwdhubOriginURL.path()) && !FileManager.default.fileExists(atPath: originURL.path)
     }
 
-    func clawdhubOrigin(for skill: Skill) async -> SkillFileWorker.ClawdhubOrigin? {
-        await fileWorker.readClawdhubOrigin(from: skill.folderURL)
+    func molthubOrigin(for skill: Skill) async -> SkillFileWorker.MolthubOrigin? {
+        await fileWorker.readMolthubOrigin(from: skill.folderURL)
     }
 
     func isInstalled(slug: String) -> Bool {
@@ -312,7 +315,7 @@ import Observation
         savePublishState(for: skill.name, hash: hash)
     }
 
-    func fetchClawdhubStatus() async -> CliStatus {
+    func fetchMolthubStatus() async -> CliStatus {
         let status = await cliWorker.fetchStatus()
         return CliStatus(
             isInstalled: status.isInstalled,
@@ -394,7 +397,7 @@ import Observation
     }
 
     func nextVersion(from current: String, bump: PublishBump) -> String? {
-        ClawdhubCLIWorker.bumpVersion(current, bump: bump)
+        MolthubCLIWorker.bumpVersion(current, bump: bump)
     }
 
     func isNewerVersion(_ latest: String, than installed: String) -> Bool {

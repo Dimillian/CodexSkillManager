@@ -64,7 +64,7 @@ struct SkillSplitView: View {
             .searchable(
                 text: $searchText,
                 placement: .sidebar,
-                prompt: source == .local ? "Filter skills" : "Search Clawdhub"
+                prompt: source == .local ? "Filter skills" : "Search Molthub"
             )
     }
 
@@ -99,14 +99,14 @@ struct SkillSplitView: View {
         switch source {
         case .local:
             SkillDetailView()
-        case .clawdhub:
+        case .molthub:
             RemoteSkillDetailView()
         }
     }
 
     @ToolbarContentBuilder
     private func toolbarContent() -> some CustomizableToolbarContent {
-        if source == .clawdhub {
+        if source == .molthub {
             ToolbarItem(id: "download") {
                 Button {
                     presentRemoteInstallSheet()
@@ -373,7 +373,7 @@ private struct SkillSplitLifecycleModifier: ViewModifier {
                 }
             }
             .onChange(of: searchText) { _, newValue in
-                guard source == .clawdhub else { return }
+                guard source == .molthub else { return }
                 searchTask?.cancel()
                 searchTask = Task {
                     try? await Task.sleep(for: .milliseconds(300))
