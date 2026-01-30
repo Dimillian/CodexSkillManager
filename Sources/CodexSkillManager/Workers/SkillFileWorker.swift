@@ -18,7 +18,7 @@ actor SkillFileWorker {
         let stats: SkillStats
     }
 
-    struct ClawdhubOrigin: Sendable {
+    struct ClawhubOrigin: Sendable {
         let slug: String
         let version: String?
     }
@@ -77,7 +77,7 @@ actor SkillFileWorker {
                 try fileManager.removeItem(at: finalURL)
             }
             try fileManager.copyItem(at: skillRoot, to: finalURL)
-            try writeClawdhubOrigin(at: finalURL, slug: slug, version: version)
+            try writeClawhubOrigin(at: finalURL, slug: slug, version: version)
         }
 
         guard let preferred = destinations.first else { return nil }
@@ -146,7 +146,7 @@ actor SkillFileWorker {
         var files: [URL] = []
         for case let fileURL as URL in enumerator {
             let path = fileURL.path
-            if path.contains("/.git/") || path.contains("/.clawdhub/") {
+            if path.contains("/.git/") || path.contains("/.clawdhub/") || path.contains("/.clawhub/") {
                 continue
             }
             if fileURL.lastPathComponent == ".DS_Store" {
@@ -176,18 +176,28 @@ actor SkillFileWorker {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    func readClawdhubOrigin(from skillRoot: URL) -> ClawdhubOrigin? {
-        let originURL = skillRoot
-            .appendingPathComponent(".clawdhub", isDirectory: true)
-            .appendingPathComponent("origin.json")
-        guard let data = try? Data(contentsOf: originURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let slug = json["slug"] as? String else {
-            return nil
+    func readClawhubOrigin(from skillRoot: URL) -> ClawhubOrigin? {
+        let originURLs = [
+            skillRoot
+                .appendingPathComponent(".clawhub", isDirectory: true)
+                .appendingPathComponent("origin.json"),
+            skillRoot
+                .appendingPathComponent(".clawdhub", isDirectory: true)
+                .appendingPathComponent("origin.json")
+        ]
+
+        for originURL in originURLs {
+            guard let data = try? Data(contentsOf: originURL),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let slug = json["slug"] as? String else {
+                continue
+            }
+
+            let version = json["version"] as? String
+            return ClawhubOrigin(slug: slug, version: version)
         }
 
-        let version = json["version"] as? String
-        return ClawdhubOrigin(slug: slug, version: version)
+        return nil
     }
 
     private func unzip(_ url: URL, to destination: URL) throws {
@@ -230,16 +240,16 @@ actor SkillFileWorker {
         return nil
     }
 
-    private func writeClawdhubOrigin(at skillRoot: URL, slug: String, version: String?) throws {
+    private func writeClawhubOrigin(at skillRoot: URL, slug: String, version: String?) throws {
         let originDir = skillRoot
-            .appendingPathComponent(".clawdhub", isDirectory: true)
+            .appendingPathComponent(".clawhub", isDirectory: true)
         try FileManager.default.createDirectory(at: originDir, withIntermediateDirectories: true)
 
         let originURL = originDir.appendingPathComponent("origin.json")
         let payload: [String: Any] = [
             "slug": slug,
             "version": version ?? "latest",
-            "source": "clawdhub",
+            "source": "clawhub",
             "installedAt": Int(Date().timeIntervalSince1970)
         ]
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted])

@@ -282,13 +282,13 @@ struct PlatformDiscoveryTests {
 struct SkillGroupingTests {
 
     /// Simulates isOwnedSkill logic from SkillStore
-    func isOwnedSkill(_ skill: TestSkill, hasClawdhubOrigin: Bool) -> Bool {
+    func isOwnedSkill(_ skill: TestSkill, hasClawhubOrigin: Bool) -> Bool {
         // Skills from custom paths are always considered "owned"
         if skill.customPath != nil {
             return true
         }
-        // For user directory skills, check for clawdhub origin
-        return !hasClawdhubOrigin
+        // For user directory skills, check for clawhub origin
+        return !hasClawhubOrigin
     }
 
     @Test("Custom path skills are always owned")
@@ -304,12 +304,12 @@ struct SkillGroupingTests {
             folderURL: URL(fileURLWithPath: "/Users/test/projects/my-project/.claude/skills/my-skill")
         )
 
-        // Even if it had a clawdhub origin, custom path skills should be owned
-        #expect(isOwnedSkill(skill, hasClawdhubOrigin: false) == true)
-        #expect(isOwnedSkill(skill, hasClawdhubOrigin: true) == true)
+        // Even if it had a clawhub origin, custom path skills should be owned
+        #expect(isOwnedSkill(skill, hasClawhubOrigin: false) == true)
+        #expect(isOwnedSkill(skill, hasClawhubOrigin: true) == true)
     }
 
-    @Test("User directory skills ownership depends on clawdhub origin")
+    @Test("User directory skills ownership depends on clawhub origin")
     func userDirectorySkillsOwnershipDependsOnOrigin() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let skill = TestSkill(
@@ -320,8 +320,8 @@ struct SkillGroupingTests {
             folderURL: home.appendingPathComponent(".claude/skills/my-skill")
         )
 
-        #expect(isOwnedSkill(skill, hasClawdhubOrigin: false) == true)  // Mine
-        #expect(isOwnedSkill(skill, hasClawdhubOrigin: true) == false)  // Clawdhub
+        #expect(isOwnedSkill(skill, hasClawhubOrigin: false) == true)  // Mine
+        #expect(isOwnedSkill(skill, hasClawhubOrigin: true) == false)  // Clawhub
     }
 
     @Test("Skills group correctly by source type")

@@ -17,7 +17,7 @@ struct SidebarHeaderView: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(source == .local ? "Installed Skills" : "Clawdhub")
+                Text(source == .local ? "Installed Skills" : "Clawhub")
                     .font(.title2.bold())
                     .foregroundStyle(.primary)
                 Text("\(skillCount) skills")

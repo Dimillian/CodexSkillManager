@@ -1,6 +1,6 @@
 import Foundation
 
-actor ClawdhubCLIWorker {
+actor ClawhubCLIWorker {
     struct CliStatus: Sendable {
         let isInstalled: Bool
         let isLoggedIn: Bool
@@ -21,7 +21,7 @@ actor ClawdhubCLIWorker {
         do {
             let whoami = try runProcess(
                 executable: bunx,
-                arguments: ["clawdhub@latest", "whoami"]
+                arguments: ["clawhub@latest", "whoami"]
             )
             let username = lastNonEmptyLine(from: whoami)
             return CliStatus(
@@ -48,7 +48,7 @@ actor ClawdhubCLIWorker {
         tags: [String]
     ) throws {
         guard let bunx = resolveBunxPath() else {
-            throw NSError(domain: "ClawdhubPublish", code: 1, userInfo: [
+            throw NSError(domain: "ClawhubPublish", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Bun is not installed."
             ])
         }
@@ -95,7 +95,7 @@ actor ClawdhubCLIWorker {
         tags: [String]
     ) -> [String] {
         var args = [
-            "clawdhub@latest",
+            "clawhub@latest",
             "publish",
             skillURL.path,
             "--version",
@@ -185,7 +185,7 @@ actor ClawdhubCLIWorker {
             .joined(separator: output.isEmpty || errorOutput.isEmpty ? "" : "\n")
 
         if process.terminationStatus != 0 {
-            throw NSError(domain: "ClawdhubPublish", code: Int(process.terminationStatus), userInfo: [
+            throw NSError(domain: "ClawhubPublish", code: Int(process.terminationStatus), userInfo: [
                 NSLocalizedDescriptionKey: errorOutput.isEmpty ? output : errorOutput
             ])
         }

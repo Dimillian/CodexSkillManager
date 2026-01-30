@@ -21,7 +21,7 @@ extension RemoteSkillClient {
         return URLSession(configuration: config)
     }()
 
-    static func live(baseURL: URL = URL(string: "https://clawdhub.com")!) -> RemoteSkillClient {
+    static func live(baseURL: URL = URL(string: "https://clawhub.ai")!) -> RemoteSkillClient {
         let session = Self.session
 
         return RemoteSkillClient(

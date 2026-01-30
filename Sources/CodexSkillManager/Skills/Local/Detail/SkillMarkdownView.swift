@@ -10,7 +10,7 @@ struct SkillMarkdownView: View {
 
     @State private var needsPublish = false
     @State private var isOwned = false
-    @State private var clawdhubOrigin: SkillFileWorker.ClawdhubOrigin?
+    @State private var clawhubOrigin: SkillFileWorker.ClawhubOrigin?
     @State private var installedVersion: String?
     @State private var latestVersion: String?
     @State private var updateAvailable = false
@@ -35,7 +35,7 @@ struct SkillMarkdownView: View {
             VStack(alignment: .leading, spacing: 16) {
                 if isOwned {
                     publishSection
-                } else if clawdhubOrigin != nil {
+                } else if clawhubOrigin != nil {
                     installSection
                 }
                 Markdown(markdown)
@@ -56,14 +56,14 @@ struct SkillMarkdownView: View {
         .navigationTitle(skill.displayName)
         .navigationSubtitle(skill.folderPath)
         .toolbar {
-            if clawdhubURL != nil {
+            if clawhubURL != nil {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        openClawdhubURL()
+                        openClawhubURL()
                     } label: {
                         Image(systemName: "globe")
                     }
-                    .help("Open on Clawdhub")
+                    .help("Open on Clawhub")
                 }
             }
         }
@@ -104,7 +104,7 @@ struct SkillMarkdownView: View {
 
     private var publishHeader: some View {
         HStack(spacing: 8) {
-            Text("Clawdhub")
+            Text("Clawhub")
                 .font(.headline)
             Spacer()
             if isCheckingPublish || isCheckingCli {
@@ -117,7 +117,7 @@ struct SkillMarkdownView: View {
     @ViewBuilder
     private var publishContent: some View {
         if isCheckingCli || isCheckingPublish {
-            Text("Checking Clawdhub status…")
+            Text("Checking Clawhub status…")
                 .foregroundStyle(.secondary)
         } else if !cliStatus.isInstalled {
             publishInstallContent
@@ -130,7 +130,7 @@ struct SkillMarkdownView: View {
 
     private var publishInstallContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Install Bun to run the Clawdhub CLI.")
+            Text("Install Bun to run the Clawhub CLI.")
                 .foregroundStyle(.secondary)
 
             Button("Install Bun") {
@@ -142,7 +142,7 @@ struct SkillMarkdownView: View {
 
     private var publishLoginContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Run bunx clawdhub@latest login in Terminal, then check again.")
+            Text("Run bunx clawhub@latest login in your Terminal, then check again.")
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
@@ -173,12 +173,12 @@ struct SkillMarkdownView: View {
                 Text(needsPublish ? "Changes detected. Publish an update." : "No unpublished changes.")
                     .foregroundStyle(.secondary)
             } else {
-                Text("Not yet published on Clawdhub.")
+                Text("Not yet published on Clawhub.")
                     .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 12) {
-                Button(publishedVersion == nil ? "Publish to Clawdhub" : "Update on Clawdhub") {
+                Button(publishedVersion == nil ? "Publish to Clawhub" : "Update on Clawhub") {
                     publishSheetSkill = skill
                 }
                 .buttonStyle(.borderedProminent)
@@ -205,7 +205,7 @@ struct SkillMarkdownView: View {
     @ViewBuilder
     private var installContent: some View {
         if isCheckingPublish {
-            Text("Checking Clawdhub status…")
+            Text("Checking Clawhub status…")
                 .foregroundStyle(.secondary)
         } else {
             if let installedVersion {
@@ -243,7 +243,7 @@ struct SkillMarkdownView: View {
 
     private func refreshOwnedState() async {
         isCheckingCli = true
-        cliStatus = await store.fetchClawdhubStatus()
+        cliStatus = await store.fetchClawhubStatus()
         isCheckingCli = false
         if cliStatus.isInstalled && cliStatus.isLoggedIn {
             isCheckingPublish = true
@@ -257,8 +257,8 @@ struct SkillMarkdownView: View {
 
     private func refreshInstalledState() async {
         isCheckingPublish = true
-        let origin = await store.clawdhubOrigin(for: skill)
-        clawdhubOrigin = origin
+        let origin = await store.clawhubOrigin(for: skill)
+        clawhubOrigin = origin
         installedVersion = origin?.version
         guard let origin else {
             isCheckingPublish = false
@@ -277,7 +277,7 @@ struct SkillMarkdownView: View {
     private func resetPublishState() {
         isOwned = false
         needsPublish = false
-        clawdhubOrigin = nil
+        clawhubOrigin = nil
         installedVersion = nil
         latestVersion = nil
         updateAvailable = false
@@ -293,7 +293,7 @@ struct SkillMarkdownView: View {
     }
 
     private func updateSkill() async {
-        guard let origin = clawdhubOrigin else { return }
+        guard let origin = clawhubOrigin else { return }
         isUpdating = true
         do {
             try await store.updateInstalledSkill(
@@ -309,7 +309,7 @@ struct SkillMarkdownView: View {
     }
 
     private func copyLoginCommand() {
-        let command = "bunx clawdhub@latest login"
+        let command = "bunx clawhub@latest login"
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
             pasteboard.setString(command, forType: .string)
@@ -320,14 +320,14 @@ struct SkillMarkdownView: View {
         NSWorkspace.shared.open(url)
     }
 
-    private var clawdhubURL: URL? {
-        let slug = isOwned ? skill.name : clawdhubOrigin?.slug
+    private var clawhubURL: URL? {
+        let slug = isOwned ? skill.name : clawhubOrigin?.slug
         guard let slug else { return nil }
-        return URL(string: "https://clawdhub.com/skills/\(slug)")
+        return URL(string: "https://clawhub.ai/skills/\(slug)")
     }
 
-    private func openClawdhubURL() {
-        guard let url = clawdhubURL else { return }
+    private func openClawhubURL() {
+        guard let url = clawhubURL else { return }
         NSWorkspace.shared.open(url)
     }
 
